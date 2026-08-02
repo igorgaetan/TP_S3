@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fil Rouge — Task Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1abc9c;
+      color: white;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 1.5rem;
+    }
+
+    h2 {
+      font-size: 1rem;
+      color: #555;
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .add-form {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .add-form input {
+      flex: 1;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .add-form input:focus { border-color: #1abc9c; }
+
+    .add-form button {
+      background: #1abc9c;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .add-form button:hover { background: #16a085; }
+
+    .task-list { list-style: none; }
+
+    .task-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .task-item:last-child { border-bottom: none; }
+
+    .task-item input[type="checkbox"] {
+      width: 18px; height: 18px;
+      accent-color: #1abc9c;
+      cursor: pointer;
+    }
+
+    .task-title {
+      flex: 1;
+      font-size: 1rem;
+      color: #333;
+      transition: color 0.2s;
+    }
+
+    .task-title.done {
+      text-decoration: line-through;
+      color: #aaa;
+    }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #ccc;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .delete-btn:hover { color: #e74c3c; }
+
+    .status {
+      font-size: 0.85rem;
+      color: #888;
+      text-align: center;
+      padding: 0.5rem;
+    }
+
+    .status.error { color: #e74c3c; }
+
+    .badge {
+      background: #1abc9c;
+      color: white;
+      border-radius: 20px;
+      padding: 0.1rem 0.6rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  🔧 PROJET FIL ROUGE — Task Manager
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h2>Ajouter une tâche</h2>
+    <div class="add-form">
+      <input type="text" id="newTitle" placeholder="Nouvelle tâche..." />
+      <button onclick="addTask()">+ Ajouter</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Tâches <span class="badge" id="count">0</span></h2>
+    <ul class="task-list" id="taskList"></ul>
+    <p class="status" id="status">Chargement...</p>
+    <div class="stat-row">
+      <span id="statDone">0 terminées</span>
+      <span id="statPending">0 en cours</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const API = "/api";
+
+  async function loadTasks() {
+    try {
+      const res = await fetch(`${API}/tasks`);
+      if (!res.ok) throw new Error("Erreur API");
+      const tasks = await res.json();
+      renderTasks(tasks);
+      document.getElementById("status").textContent = "";
+    } catch (e) {
+      document.getElementById("status").textContent = "⚠️ Impossible de joindre l'API";
+      document.getElementById("status").className = "status error";
+    }
+  }
+
+  function renderTasks(tasks) {
+    const list = document.getElementById("taskList");
+    list.innerHTML = "";
+    document.getElementById("count").textContent = tasks.length;
+    document.getElementById("statDone").textContent = tasks.filter(t => t.done).length + " terminées";
+    document.getElementById("statPending").textContent = tasks.filter(t => !t.done).length + " en cours";
+
+    tasks.forEach(task => {
+      const li = document.createElement("li");
+      li.className = "task-item";
+      li.innerHTML = `
+        <input type="checkbox" ${task.done ? "checked" : ""}
+          onchange="toggleTask(${task.id})" />
+        <span class="task-title ${task.done ? 'done' : ''}">${escHtml(task.title)}</span>
+        <button class="delete-btn" onclick="deleteTask(${task.id})">✕</button>
+      `;
+      list.appendChild(li);
+    });
+  }
+
+  async function addTask() {
+    const input = document.getElementById("newTitle");
+    const title = input.value.trim();
+    if (!title) return;
+    await fetch(`${API}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title })
+    });
+    input.value = "";
+    loadTasks();
+  }
+
+  async function toggleTask(id) {
+    await fetch(`${API}/tasks/${id}`, { method: "PATCH" });
+    loadTasks();
+  }
+
+  async function deleteTask(id) {
+    await fetch(`${API}/tasks/${id}`, { method: "DELETE" });
+    loadTasks();
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  // Entrée clavier
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("newTitle").addEventListener("keydown", e => {
+      if (e.key === "Enter") addTask();
+    });
+    loadTasks();
+  });
+</script>
+
+</body>
+</html>

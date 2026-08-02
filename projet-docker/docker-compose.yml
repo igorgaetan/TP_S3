@@ -1,0 +1,63 @@
+version: "3.9"
+
+networks:
+  projetdocker-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+
+services:
+
+  # ─── Base de données ───────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: projetdocker
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret123
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - projetdocker-net
+
+  # ─── API Backend (Node.js) ─────────────────────────────────────
+  api:
+    build: ./api
+    container_name: api
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: projetdocker
+      DB_USER: admin
+      DB_PASSWORD: secret123
+    depends_on:
+      - postgres
+    networks:
+      - projetdocker-net
+
+  # ─── Frontend (React servi en static) ─────────────────────────
+  webapp:
+    build: ./webapp
+    container_name: webapp
+    restart: unless-stopped
+    networks:
+      - projetdocker-net
+
+  # ─── Reverse Proxy ─────────────────────────────────────────────
+  nginx:
+    build: ./nginx
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+      - webapp
+    networks:
+      - projetdocker-net
